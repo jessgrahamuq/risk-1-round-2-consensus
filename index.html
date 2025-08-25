@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expert Response Distribution</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Figtree', Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .matrix-container {
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .sample-size {
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 15px;
+        }
+        
+        .matrix-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        
+        .matrix-table th {
+            background-color: #f8f9fa;
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #dee2e6;
+            font-size: 14px;
+        }
+        
+        .group-header {
+            background-color: #c41e3a;
+            color: white;
+            font-weight: bold;
+            padding: 8px;
+            text-align: center;
+        }
+        
+        .group-header.optional {
+            background-color: #6c757d;
+        }
+        
+        .actor-label {
+            background-color: #f8f9fa;
+            padding: 12px;
+            font-weight: bold;
+            text-align: left;
+            border: 1px solid #dee2e6;
+            width: 200px;
+            position: relative;
+        }
+        
+        .actor-filter {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            color: #666;
+            border: none;
+            padding: 4px;
+            border-radius: 3px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .actor-filter:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .actor-filter.active {
+            background: #000;
+            color: white;
+        }
+        
+        .matrix-table tr.hidden {
+            display: none;
+        }
+        
+        .response-cell {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+            position: relative;
+            min-width: 120px;
+            background-color: white;
+        }
+        
+        .distribution-bar {
+            height: 32px;
+            background-color: #f1f3f4;
+            border-radius: 6px;
+            margin: 6px 0;
+            position: relative;
+            overflow: visible;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .distribution-fill {
+            height: 100%;
+            background-color: #4285f4;
+            border-radius: 5px;
+            transition: width 0.4s ease;
+            min-width: 2px;
+        }
+        
+        .percentage-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 13px;
+            font-weight: 600;
+            z-index: 2;
+            color: #000000;
+            pointer-events: none;
+            -webkit-text-stroke: 2px white;
+            text-stroke: 2px white;
+            paint-order: stroke fill;
+        }
+        
+        .median-indicator {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 12px solid #ea4335;
+            z-index: 10;
+        }
+        
+        .legend {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #5f6368;
+        }
+        
+        .legend-arrow {
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 12px solid #ea4335;
+        }
+        
+        .legend-bar {
+            width: 20px;
+            height: 16px;
+            background-color: #1a73e8;
+            border-radius: 3px;
+            box-shadow: 0 2px 4px rgba(26, 115, 232, 0.3);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        
+        .error {
+            text-align: center;
+            padding: 40px;
+            color: #c41e3a;
+            background-color: #f8d7da;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="matrix-container">
+        <div id="loadingMessage" class="loading">Loading expert response data...</div>
+        <div id="errorMessage" class="error" style="display: none;">Risk data not found. Please check the URL parameter.</div>
+        
+        <div id="mainContent" style="display: none;">
+            <table class="matrix-table">
+                <thead>
+                    <tr>
+                        <th style="width: 200px;"></th>
+                        <th>Not at all vulnerable</th>
+                        <th>Minimally vulnerable</th>
+                        <th>Moderately vulnerable</th>
+                        <th>Highly vulnerable</th>
+                        <th>Extremely vulnerable</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="6" class="group-header">Required Assessments</td>
+                    </tr>
+                    <tr data-actor="ai_user">
+                        <td class="actor-label">
+                            AI User
+                            <button class="actor-filter" onclick="toggleActor('ai_user', this)">&#8942;</button>
+                        </td>
+                        <td class="response-cell" data-response="not_at_all"></td>
+                        <td class="response-cell" data-response="minimally"></td>
+                        <td class="response-cell" data-response="moderately"></td>
+                        <td class="response-cell" data-response="highly"></td>
+                        <td class="response-cell" data-response="extremely"></td>
+                    </tr>
+                    <tr data-actor="ai_gov_actor">
+                        <td class="actor-label">
+                            AI Governance Actor
+                            <button class="actor-filter" onclick="toggleActor('ai_gov_actor', this)">&#8942;</button>
+                        </td>
+                        <td class="response-cell" data-response="not_at_all"></td>
+                        <td class="response-cell" data-response="minimally"></td>
+                        <td class="response-cell" data-response="moderately"></td>
+                        <td class="response-cell" data-response="highly"></td>
+                        <td class="response-cell" data-response="extremely"></td>
+                    </tr>
+                    <tr data-actor="ai_deployer">
+                        <td class="actor-label">
+                            AI Deployer
+                            <button class="actor-filter" onclick="toggleActor('ai_deployer', this)">&#8942;</button>
+                        </td>
+                        <td class="response-cell" data-response="not_at_all"></td>
+                        <td class="response-cell" data-response="minimally"></td>
+                        <td class="response-cell" data-response="moderately"></td>
+                        <td class="response-cell" data-response="highly"></td>
+                        <td class="response-cell" data-response="extremely"></td>
+                    </tr>
+                    <tr data-actor="ai_dev_gen">
+                        <td class="actor-label">
+                            AI Developer (General-purpose AI)
+                            <button class="actor-filter" onclick="toggleActor('ai_dev_gen', this)">&#8942;</button>
+                        </td>
+                        <td class="response-cell" data-response="not_at_all"></td>
+                        <td class="response-cell" data-response="minimally"></td>
+                        <td class="response-cell" data-response="moderately"></td>
+                        <td class="response-cell" data-response="highly"></td>
+                        <td class="response-cell" data-response="extremely"></td>
+                    </tr>
+                    <tr>
+                        <td colspan="6" class="group-header optional">Optional Assessments</td>
+                    </tr>
+                    <tr data-actor="ai_infra">
+                        <td class="actor-label">
+                            AI Infrastructure Provider
+                            <button class="actor-filter" onclick="toggleActor('ai_infra', this)">&#8942;</button>
+                        </td>
+                        <td class="response-cell" data-response="not_at_all"></td>
+                        <td class="response-cell" data-response="minimally"></td>
+                        <td class="response-cell" data-response="moderately"></td>
+                        <td class="response-cell" data-response="highly"></td>
+                        <td class="response-cell" data-response="extremely"></td>
+                    </tr>
+                    <tr data-actor="ai_dev_spec">
+                        <td class="actor-label">
+                            AI Developer (Specialized AI)
+                            <button class="actor-filter" onclick="toggleActor('ai_dev_spec', this)">&#8942;</button>
+                        </td>
+                        <td class="response-cell" data-response="not_at_all"></td>
+                        <td class="response-cell" data-response="minimally"></td>
+                        <td class="response-cell" data-response="moderately"></td>
+                        <td class="response-cell" data-response="highly"></td>
+                        <td class="response-cell" data-response="extremely"></td>
+                    </tr>
+                    <tr data-actor="ai_stake">
+                        <td class="actor-label">
+                            Affected Stakeholder
+                            <button class="actor-filter" onclick="toggleActor('ai_stake', this)">&#8942;</button>
+                        </td>
+                        <td class="response-cell" data-response="not_at_all"></td>
+                        <td class="response-cell" data-response="minimally"></td>
+                        <td class="response-cell" data-response="moderately"></td>
+                        <td class="response-cell" data-response="highly"></td>
+                        <td class="response-cell" data-response="extremely"></td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-arrow"></div>
+                    <span>Median vulnerability level (50th percentile)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Risk definitions
+        const riskTitles = {
+            '1.1': 'Unfair discrimination and misrepresentation',
+            '1.2': 'Privacy violations and unauthorized surveillance',
+            '1.3': 'Lack of transparency and explainability',
+            '2.1': 'Manipulation and deception',
+            '2.2': 'Misinformation and disinformation',
+            '2.3': 'Harmful content generation'
+        };
+        
+        // Sample expert data
+        const expertDataStore = {
+            '1.1': {
+                data: {
+                    ai_user: { not_at_all: 2, minimally: 5, moderately: 8, highly: 7, extremely: 3 },
+                    ai_gov_actor: { not_at_all: 8, minimally: 12, moderately: 4, highly: 1, extremely: 0 },
+                    ai_deployer: { not_at_all: 1, minimally: 3, moderately: 9, highly: 8, extremely: 4 },
+                    ai_dev_gen: { not_at_all: 15, minimally: 7, moderately: 2, highly: 1, extremely: 0 },
+                    ai_infra: { not_at_all: 18, minimally: 5, moderately: 2, highly: 0, extremely: 0 },
+                    ai_dev_spec: { not_at_all: 12, minimally: 8, moderately: 3, highly: 2, extremely: 0 },
+                    ai_stake: { not_at_all: 0, minimally: 2, moderately: 5, highly: 10, extremely: 8 }
+                },
+                totalExperts: 25
+            },
+            '1.2': {
+                data: {
+                    ai_user: { not_at_all: 0, minimally: 3, moderately: 6, highly: 10, extremely: 6 },
+                    ai_gov_actor: { not_at_all: 5, minimally: 8, moderately: 7, highly: 4, extremely: 1 },
+                    ai_deployer: { not_at_all: 2, minimally: 4, moderately: 8, highly: 7, extremely: 4 },
+                    ai_dev_gen: { not_at_all: 12, minimally: 8, moderately: 4, highly: 1, extremely: 0 },
+                    ai_infra: { not_at_all: 15, minimally: 6, moderately: 3, highly: 1, extremely: 0 },
+                    ai_dev_spec: { not_at_all: 10, minimally: 9, moderately: 4, highly: 2, extremely: 0 },
+                    ai_stake: { not_at_all: 1, minimally: 2, moderately: 4, highly: 8, extremely: 10 }
+                },
+                totalExperts: 25
+            }
+        };
+        
+        let currentRisk = '';
+        let expertData = {};
+        let totalExperts = 25;
+        
+        function calculateMedian(responses) {
+            const responseOrder = ['not_at_all', 'minimally', 'moderately', 'highly', 'extremely'];
+            const counts = responseOrder.map(key => responses[key] || 0);
+            const total = counts.reduce((a, b) => a + b, 0);
+            
+            if (total === 0) return null;
+            
+            // Create array of all individual responses
+            let allResponses = [];
+            responseOrder.forEach((response, index) => {
+                for (let i = 0; i < counts[index]; i++) {
+                    allResponses.push(index);
+                }
+            });
+            
+            allResponses.sort((a, b) => a - b);
+            
+            // Calculate median position
+            let medianIndex;
+            if (allResponses.length % 2 === 0) {
+                medianIndex = Math.floor(allResponses.length / 2) - 1;
+            } else {
+                medianIndex = Math.floor(allResponses.length / 2);
+            }
+            
+            const medianValue = allResponses[medianIndex];
+            return responseOrder[medianValue];
+        }
+        
+        function findMode(responses) {
+            let maxCount = 0;
+            let mode = null;
+            
+            Object.keys(responses).forEach(key => {
+                if (responses[key] > maxCount) {
+                    maxCount = responses[key];
+                    mode = key;
+                }
+            });
+            
+            return mode;
+        }
+        
+        function getRiskFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('risk') || '1.1';
+        }
+        
+        function loadRiskData(riskId) {
+            currentRisk = riskId;
+            
+            document.getElementById('loadingMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            
+            if (!expertDataStore[riskId]) {
+                document.getElementById('errorMessage').style.display = 'block';
+                return;
+            }
+            
+            const riskData = expertDataStore[riskId];
+            expertData = riskData.data;
+            totalExperts = riskData.totalExperts;
+            
+            document.getElementById('mainContent').style.display = 'block';
+            updateVisualization();
+        }
+        
+        function updateVisualization() {
+            const actors = Object.keys(expertData);
+            
+            actors.forEach(actor => {
+                const row = document.querySelector(`tr[data-actor="${actor}"]`);
+                if (!row) return;
+                
+                const responses = expertData[actor];
+                const total = Object.values(responses).reduce((a, b) => a + b, 0);
+                const median = calculateMedian(responses);
+                const mode = findMode(responses);
+                
+                Object.keys(responses).forEach(responseType => {
+                    const cell = row.querySelector(`.response-cell[data-response="${responseType}"]`);
+                    if (!cell) return;
+                    
+                    const count = responses[responseType];
+                    const percentage = total > 0 ? (count / total * 100) : 0;
+                    
+                    cell.innerHTML = '';
+                    
+                    const barContainer = document.createElement('div');
+                    barContainer.className = 'distribution-bar';
+                    
+                    // Add median indicator
+                    if (responseType === median) {
+                        const medianArrow = document.createElement('div');
+                        medianArrow.className = 'median-indicator';
+                        barContainer.style.position = 'relative';
+                        barContainer.appendChild(medianArrow);
+                    }
+                    
+                    const barFill = document.createElement('div');
+                    barFill.className = 'distribution-fill';
+                    barFill.style.width = Math.max(percentage, 0) + '%';
+                    
+                    const label = document.createElement('div');
+                    label.className = 'percentage-label';
+                    label.textContent = Math.round(percentage) + '%';
+                    
+                    barContainer.appendChild(barFill);
+                    barContainer.appendChild(label);
+                    cell.appendChild(barContainer);
+                });
+            });
+            
+            // Expert count element was removed, so skip this update
+        }
+        
+        // Initialize
+        window.addEventListener('load', function() {
+            const riskId = getRiskFromURL();
+            loadRiskData(riskId);
+        });
+        
+        window.addEventListener('popstate', function() {
+            const riskId = getRiskFromURL();
+            loadRiskData(riskId);
+        });
+        
+        function addRiskData(riskId, data, expertCount = 25) {
+            expertDataStore[riskId] = {
+                data: data,
+                totalExperts: expertCount
+            };
+        }
+        
+        let focusedActor = null;
+        
+        function toggleActor(actorId, button) {
+            const allRows = document.querySelectorAll('tr[data-actor]');
+            const allButtons = document.querySelectorAll('.actor-filter');
+            const targetRow = document.querySelector(`tr[data-actor="${actorId}"]`);
+            
+            if (focusedActor === actorId) {
+                // Show all rows - no text changes needed
+                allRows.forEach(row => row.classList.remove('hidden'));
+                allButtons.forEach(btn => btn.classList.remove('active'));
+                focusedActor = null;
+            } else {
+                // Hide all other rows, show only this one
+                allRows.forEach(row => {
+                    if (row.dataset.actor !== actorId) {
+                        row.classList.add('hidden');
+                    } else {
+                        row.classList.remove('hidden');
+                    }
+                });
+                
+                // Update buttons - no text changes needed
+                allButtons.forEach(btn => {
+                    if (btn === button) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
+                
+                focusedActor = actorId;
+            }
+        }
+    </script>
+</body>
+</html>
