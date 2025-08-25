@@ -118,7 +118,7 @@
         
         .distribution-bar {
             height: 40px;
-            background-color: #f1f3f4;
+            background-color: white;
             border-radius: 0;
             margin: 4px 0;
             position: relative;
@@ -444,7 +444,7 @@
                 const dataRows = document.querySelectorAll('tr[data-actor]');
                 const actorIndex = Array.from(dataRows).indexOf(row);
                 const isEven = actorIndex % 2 === 0;
-                const backgroundColor = isEven ? '#e9ecef' : 'white';
+                const backgroundColor = isEven ? '#f0f0f0' : 'white';
                 
                 // Apply background to all cells in the row
                 const cells = row.querySelectorAll('td');
